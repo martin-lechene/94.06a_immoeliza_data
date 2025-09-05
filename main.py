@@ -1,6 +1,7 @@
 from scraper.scraper import Immoweb_Scraper
 import time
 
+
 def main():
     max = 333
     print(
@@ -19,8 +20,8 @@ def main():
         immoscrap.update_dataset()
         immoscrap.Raw_DataFrame()
         immoscrap.to_csv_raw()
-        #immoscrap.Clean_DataFrame()
-        #immoscrap.to_csv_clean()
+        immoscrap.Clean_DataFrame()
+        immoscrap.to_csv_clean()
         end = time.time()
         print("Time Taken: {:.6f}s".format(end - start))
         print(

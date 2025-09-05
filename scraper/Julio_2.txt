@@ -1,0 +1,72 @@
+def process_property_detail(detail):
+    """Process a single property detail and return a dictionary with selected property attributes.
+
+    Args:
+        detail (dict): A dictionary containing details of a single property.
+
+    Returns:
+        dict: A dictionary with processed property details or None if input is invalid.
+    """
+    if not detail:
+        return None
+
+    property_type = detail.get('property', {}).get('type')
+    if property_type in ['HOUSE_GROUP', 'APARTMENT_GROUP']:
+        return None
+
+    def get_nested_value(dictionary, *keys, default=None):
+        for key in keys:
+            if isinstance(dictionary, dict):
+                dictionary = dictionary.get(key, {})
+            else:
+                return default
+        return dictionary if dictionary else default
+
+    property_dict = {
+        "Property ID": detail.get('id'),
+        "Locality name": get_nested_value(detail, 'property', 'location', 'locality', default=None),
+        "Postal code": get_nested_value(detail, 'property', 'location', 'postalCode', default=None),
+        "Price": detail.get('transaction', {}).get('sale', {}).get('price', None),
+        "Type of property": detail.get('property', {}).get('type', None),
+        "Subtype of property": detail.get('property', {}).get('subtype', None),
+        "Type of sale": None if get_nested_value(detail, 'transaction', 'subtype') == 'LIFE_SALE' else detail.get('transaction', {}).get('subtype', None),
+        "Number of Rooms": detail.get('property', {}).get('bedroomCount', None),
+        "Living area": detail.get('property', {}).get('netHabitableSurface', None),
+        "Furnished": 1 if detail.get('transaction', {}).get('sale', {}).get('isFurnished', False) else None,
+        "Open fire": 1 if detail.get('property', {}).get('fireplaceExists', False) else None,
+        "Terrace Surface": detail.get('property', {}).get('terraceSurface', None),
+        "Garden Surface": detail.get('property', {}).get('gardenSurface', None),
+        "Swimming pool": 1 if detail.get('property', {}).get('hasSwimmingPool', False) else None,
+        "Toilets": detail.get('property', {}).get('toiletCount', None),
+        "Surface of good": get_nested_value(detail, 'property', 'land', 'surface', default=None),
+        "Number of facades": get_nested_value(detail, 'property', 'location', 'facadeCount', default=None),
+        "location State": get_nested_value(detail, 'property', 'location', 'condition', default=None),
+        "Kitchen_type": None,
+        "Kitchen": None,
+        "Country": get_nested_value(detail, 'property', 'location', 'country', default=None),
+        "Region": get_nested_value(detail, 'property', 'location', 'region', default=None),
+        "Province": get_nested_value(detail, 'property', 'location', 'province', default=None),
+        "District": get_nested_value(detail, 'property', 'location', 'district', default=None),
+        "Locality": get_nested_value(detail, 'property', 'location', 'locality', default=None),
+        "Street": get_nested_value(detail, 'property', 'location', 'street', default=None),
+        "Number House": get_nested_value(detail, 'property', 'location', 'number', default=None),
+        "Latitude": get_nested_value(detail, 'property', 'location', 'latitude', default=None),
+        "Longitude": get_nested_value(detail, 'property', 'location', 'longitude', default=None),
+        "Energy Level": get_nested_value(detail, 'transaction', 'certificates', 'epcScore', default=None),
+        "Taxes Year": get_nested_value(detail, 'transaction', 'sale', 'cadastralIncome', default=None)
+    }
+
+    kitchen = detail.get('property', {}).get('kitchen')
+    if kitchen and isinstance(kitchen, dict):
+        kitchen_type = kitchen.get('type')
+        if kitchen_type and kitchen_type != "NOT_INSTALLED":
+            property_dict['Kitchen'] = 1
+            property_dict['Kitchen_type'] = kitchen_type
+        else:
+            property_dict['Kitchen'] = None
+            property_dict['Kitchen_type'] = None
+    else:
+        property_dict['Kitchen'] = None
+        property_dict['Kitchen_type'] = None
+
+    return property_dict

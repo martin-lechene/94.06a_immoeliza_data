@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 import pandas as pd
 import time
 import re
+import random
 
 
 class Immoweb_Scraper:
@@ -26,6 +27,20 @@ class Immoweb_Scraper:
                 "Elevator","Accessible for disabled people","Outdoor parking spaces","Covered parking spaces","Shower rooms"]
         self.data_set = []
         self.numpages = numpages
+        self.session = requests.Session()
+        # Set realistic headers
+        self.session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9,fr;q=0.8,nl;q=0.7',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Cache-Control': 'max-age=0',
+        })
 
     def get_base_urls(self):
         """
@@ -52,15 +67,40 @@ class Immoweb_Scraper:
         Returns:
         - list: List of Immoweb URLs.
         """
-        try:
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-            }
-            response = requests.get(url, headers=headers, timeout=10)
-            response.raise_for_status()
-            url_content = response.content
-        except requests.exceptions.RequestException as e:
-            print(f"Error accessing {url}: {e}")
+        # Add random delay to appear more human-like
+        time.sleep(random.uniform(1, 3))
+        
+        max_retries = 3
+        url_content = None
+        for attempt in range(max_retries):
+            try:
+                response = self.session.get(url, timeout=15, allow_redirects=True)
+                
+                # Check if we got blocked
+                if response.status_code == 403:
+                    if attempt < max_retries - 1:
+                        wait_time = (attempt + 1) * 5 + random.uniform(2, 5)
+                        print(f"Got 403 for {url}, waiting {wait_time:.1f}s before retry {attempt + 1}/{max_retries}")
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        print(f"Error accessing {url}: 403 Forbidden (blocked after {max_retries} attempts)")
+                        return []
+                
+                response.raise_for_status()
+                url_content = response.content
+                break
+            except requests.exceptions.RequestException as e:
+                if attempt < max_retries - 1:
+                    wait_time = (attempt + 1) * 3 + random.uniform(1, 3)
+                    print(f"Error accessing {url} (attempt {attempt + 1}/{max_retries}): {e}, retrying in {wait_time:.1f}s")
+                    time.sleep(wait_time)
+                else:
+                    print(f"Error accessing {url}: {e} (failed after {max_retries} attempts)")
+                    return []
+        
+        # If we couldn't get the content, return empty list
+        if url_content is None:
             return []
 
         lst = []
@@ -118,12 +158,16 @@ class Immoweb_Scraper:
 
     def get_immoweb_urls_thread(self):
         self.base_urls_list = self.get_base_urls()
-        with ThreadPoolExecutor(max_workers=9) as executor:
+        # Reduce workers to avoid being blocked
+        max_workers = min(3, len(self.base_urls_list))
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
             print('Generating urls')
             results = executor.map(lambda url: self.get_immoweb_url(url), self.base_urls_list)
             for result in results:
-                print(result)
+                if result:
+                    print(f"Found {len(result)} URLs")
                 self.immoweb_urls_list.extend(result)
+        print(f"Total URLs collected: {len(self.immoweb_urls_list)}")
         return self.immoweb_urls_list
 
     def create_soup_thread(self):
@@ -131,24 +175,55 @@ class Immoweb_Scraper:
         self.c=0
         self.soups = []
         self.immoweb_urls_list = self.get_immoweb_urls_thread()
-        with ThreadPoolExecutor(max_workers=9) as executor:
-            with requests.Session() as session:
-                results = executor.map(lambda url: self.create_soup(url, session), self.immoweb_urls_list)
-                for result in results:
-                    if result is not None:
-                        self.soups.append(result)
+        
+        if not self.immoweb_urls_list:
+            print("No URLs to process. Skipping soup creation.")
+            return []
+        
+        # Reduce workers to avoid being blocked
+        max_workers = min(3, len(self.immoweb_urls_list))
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Use the same session for all requests
+            results = executor.map(lambda url: self.create_soup(url, self.session), self.immoweb_urls_list)
+            for result in results:
+                if result is not None:
+                    self.soups.append(result)
+        print(f"Created {len(self.soups)} soup objects out of {len(self.immoweb_urls_list)} URLs")
         return self.soups
     
     def create_soup(self, url, session):
         self.c += 1
         print(f'{self.c} Soup objects created')
-        try:
-            url_content = session.get(url).content
-            soup = BeautifulSoup(url_content, "lxml")
-            return soup
-        except requests.exceptions.RequestException as e:
-            print(f"Error accessing {url}: {e}")
-            return None
+        # Add random delay to appear more human-like
+        time.sleep(random.uniform(0.5, 2))
+        
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = session.get(url, timeout=15, allow_redirects=True)
+                
+                # Check if we got blocked
+                if response.status_code == 403:
+                    if attempt < max_retries - 1:
+                        wait_time = (attempt + 1) * 5 + random.uniform(2, 5)
+                        print(f"Got 403 for {url}, waiting {wait_time:.1f}s before retry {attempt + 1}/{max_retries}")
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        print(f"Error accessing {url}: 403 Forbidden (blocked after {max_retries} attempts)")
+                        return None
+                
+                response.raise_for_status()
+                soup = BeautifulSoup(response.content, "lxml")
+                return soup
+            except requests.exceptions.RequestException as e:
+                if attempt < max_retries - 1:
+                    wait_time = (attempt + 1) * 3 + random.uniform(1, 3)
+                    print(f"Error accessing {url} (attempt {attempt + 1}/{max_retries}): {e}, retrying in {wait_time:.1f}s")
+                    time.sleep(wait_time)
+                else:
+                    print(f"Error accessing {url}: {e} (failed after {max_retries} attempts)")
+                    return None
 
     def scrape_table_dataset(self):
         """
@@ -164,12 +239,15 @@ class Immoweb_Scraper:
             print("No valid soups to process")
             return self.data_set
         
-        with ThreadPoolExecutor(max_workers=9) as executor:
+        # Reduce workers to avoid being blocked
+        max_workers = min(3, len(valid_pairs))
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
             print('Scraping in progress')
             results = executor.map(lambda url_soup: self.process_url(url_soup[0], url_soup[1]), valid_pairs)
             for result in results:
                 if result and result not in self.data_set:  # Check for duplicates before appending
                     self.data_set.append(result)
+        print(f"Scraped {len(self.data_set)} properties")
         return self.data_set
 
     def process_url(self, each_url, soup):

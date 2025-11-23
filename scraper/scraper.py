@@ -55,23 +55,50 @@ class Immoweb_Scraper:
     
     def _load_browser_cookies(self):
         """
-        Load cookies from Chrome browser to make requests look more authentic.
+        Load cookies from browser (Chrome, Firefox, Edge) to make requests look more authentic.
+        Tries multiple browsers in order of preference.
         """
-        try:
-            # Try to load cookies from Chrome
-            chrome_cookies = browser_cookie3.chrome(domain_name='immoweb.be')
-            cookie_dict = {}
-            for cookie in chrome_cookies:
-                cookie_dict[cookie.name] = cookie.value
-                self.session.cookies.set(cookie.name, cookie.value, domain=cookie.domain)
-            
-            if cookie_dict:
-                print(f"Loaded {len(cookie_dict)} cookies from Chrome browser")
-            else:
-                print("No Chrome cookies found for immoweb.be, using session cookies")
-        except Exception as e:
-            print(f"Could not load Chrome cookies: {e}")
-            print("Continuing with session cookies only")
+        browsers = [
+            ('Chrome', browser_cookie3.chrome),
+            ('Edge', browser_cookie3.edge),
+            ('Firefox', browser_cookie3.firefox),
+        ]
+        
+        cookie_dict = {}
+        loaded_from = None
+        
+        for browser_name, browser_func in browsers:
+            try:
+                # Try to load cookies from the browser
+                browser_cookies = browser_func(domain_name='immoweb.be')
+                cookie_dict = {}
+                for cookie in browser_cookies:
+                    cookie_dict[cookie.name] = cookie.value
+                    self.session.cookies.set(cookie.name, cookie.value, domain=cookie.domain)
+                
+                if cookie_dict:
+                    loaded_from = browser_name
+                    print(f"✓ Loaded {len(cookie_dict)} cookies from {browser_name} browser")
+                    break
+            except Exception as e:
+                # Try next browser
+                continue
+        
+        if not cookie_dict:
+            print("⚠ No browser cookies found for immoweb.be, using session cookies")
+            print("  Tip: Visit immoweb.be in your browser first to generate cookies")
+        else:
+            # Also try to get cookies for www.immoweb.be
+            try:
+                if loaded_from:
+                    browser_func = dict(browsers)[loaded_from]
+                    www_cookies = browser_func(domain_name='www.immoweb.be')
+                    for cookie in www_cookies:
+                        if cookie.name not in cookie_dict:
+                            cookie_dict[cookie.name] = cookie.value
+                            self.session.cookies.set(cookie.name, cookie.value, domain=cookie.domain)
+            except:
+                pass
     
     def _establish_session(self):
         """

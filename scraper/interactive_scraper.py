@@ -46,22 +46,66 @@ class InteractiveImmowebScraper:
         
         # Use your Chrome profile to keep cookies and session
         user_data_dir = os.path.join(os.path.expanduser("~"), "AppData", "Local", "Google", "Chrome", "User Data")
+        profile_dir = "Default"
+        
+        # Check if Chrome is running
+        chrome_running = False
+        if psutil:
+            try:
+                chrome_running = any("chrome" in p.name().lower() for p in psutil.process_iter(['name']))
+            except:
+                pass
+        
+        if chrome_running:
+            print("[WARNING] Chrome is already running!")
+            print("Please close Chrome completely before continuing.")
+            print("Or we can use a separate profile...")
+            choice = input("Use separate profile? (y/n): ").strip().lower()
+            if choice == 'y':
+                profile_dir = "Profile 1"
+            else:
+                input("Close Chrome and press Enter to continue...")
+        
         if os.path.exists(user_data_dir):
             chrome_options.add_argument(f"--user-data-dir={user_data_dir}")
-            chrome_options.add_argument("--profile-directory=Default")
+            chrome_options.add_argument(f"--profile-directory={profile_dir}")
+            print(f"[OK] Using Chrome profile: {profile_dir}")
         
-        # Other options
+        # Other options to make it look like a real browser
         chrome_options.add_argument("--disable-blink-features=AutomationControlled")
         chrome_options.add_argument("--start-maximized")
+        chrome_options.add_argument("--disable-dev-shm-usage")
+        chrome_options.add_argument("--no-sandbox")
+        
+        # Remove automation flags
+        chrome_options.add_experimental_option('excludeSwitches', ['enable-logging', 'enable-automation'])
+        chrome_options.add_experimental_option('useAutomationExtension', False)
         
         try:
             service = Service(ChromeDriverManager().install())
             self.driver = webdriver.Chrome(service=service, options=chrome_options)
+            print("\n" + "="*60)
             print("[OK] Browser opened successfully!")
-            print("You can now interact with the browser.")
+            print("="*60)
+            print("\nYou can now:")
+            print("- Navigate freely in the browser")
+            print("- Use it like a normal Chrome browser")
+            print("- Your session and cookies are preserved")
+            print("\nThe browser will stay open even after the script ends.")
+            print("="*60 + "\n")
         except Exception as e:
             print(f"[ERROR] Failed to open browser: {e}")
-            raise
+            print("\nTrying alternative method...")
+            # Try without user profile
+            chrome_options = Options()
+            chrome_options.add_experimental_option("detach", True)
+            chrome_options.add_argument("--start-maximized")
+            try:
+                service = Service(ChromeDriverManager().install())
+                self.driver = webdriver.Chrome(service=service, options=chrome_options)
+                print("[OK] Browser opened (without user profile)")
+            except:
+                raise
     
     def navigate_to(self, url):
         """Navigate to a URL."""
@@ -353,11 +397,13 @@ def main():
     print("="*60)
     print("INTERACTIVE IMMOWEB SCRAPER")
     print("="*60)
-    print("\nThis tool opens a Chrome browser that you can interact with.")
-    print("You can navigate manually and create scraping workflows.")
-    print("\nIMPORTANT: The browser will use your Chrome profile.")
-    print("Make sure Chrome is NOT running before starting.")
-    print("\nPress Enter to continue or Ctrl+C to cancel...")
+    print("\nThis tool opens a REAL Chrome browser that you can use normally.")
+    print("You can navigate, click, search - do everything you want!")
+    print("\nThe browser will:")
+    print("- Use your Chrome profile (your bookmarks, history, cookies)")
+    print("- Stay open even after the script ends")
+    print("- Work exactly like normal Chrome")
+    print("\nPress Enter to open the browser or Ctrl+C to cancel...")
     
     try:
         input()
@@ -369,33 +415,42 @@ def main():
     
     try:
         # Navigate to Immoweb
-        print("\nOpening Immoweb...")
+        print("\nOpening Immoweb in the browser...")
         scraper.navigate_to("https://www.immoweb.be")
         
         print("\n" + "="*60)
-        print("BROWSER IS NOW OPEN")
+        print("BROWSER IS NOW OPEN - YOU CAN USE IT NORMALLY!")
         print("="*60)
-        print("\nYou can now:")
-        print("1. Navigate manually to any page on Immoweb")
-        print("2. Use the menu below to create your scraping workflow")
-        print("3. The browser will stay open - you can interact with it anytime")
+        print("\nThe Chrome window is open. You can:")
+        print("- Navigate anywhere you want")
+        print("- Search for properties")
+        print("- Click on links")
+        print("- Do everything you normally do in Chrome")
+        print("\nWhen you're ready to create a scraping workflow,")
+        print("come back here and use the menu below.")
         print("\n" + "="*60)
         
-        scraper.wait_for_user("\nNavigate to a search page in the browser, then press Enter here...")
+        # Give user time to see the browser
+        time.sleep(2)
         
         # Start interactive mode
         scraper.select_elements_interactive()
         
     except KeyboardInterrupt:
-        print("\n\nInterrupted by user")
+        print("\n\nScript interrupted. Browser will stay open.")
+        print("You can continue using it normally.")
     except Exception as e:
         print(f"\n[ERROR] {e}")
         import traceback
         traceback.print_exc()
+        print("\nBrowser will stay open. You can continue using it.")
     finally:
-        print("\nClosing browser in 3 seconds...")
-        time.sleep(3)
-        scraper.close()
+        # Don't close the browser - let user close it manually
+        print("\n" + "="*60)
+        print("Script finished. Browser will stay open.")
+        print("Close it manually when you're done.")
+        print("="*60)
+        # scraper.close()  # Commented out - let browser stay open
 
 
 if __name__ == "__main__":

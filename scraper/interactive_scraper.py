@@ -14,6 +14,7 @@ import time
 import json
 import os
 from bs4 import BeautifulSoup
+import pandas as pd
 
 
 class InteractiveImmowebScraper:
@@ -354,6 +355,15 @@ def main():
     print("="*60)
     print("\nThis tool opens a Chrome browser that you can interact with.")
     print("You can navigate manually and create scraping workflows.")
+    print("\nIMPORTANT: The browser will use your Chrome profile.")
+    print("Make sure Chrome is NOT running before starting.")
+    print("\nPress Enter to continue or Ctrl+C to cancel...")
+    
+    try:
+        input()
+    except KeyboardInterrupt:
+        print("\nCancelled.")
+        return
     
     scraper = InteractiveImmowebScraper()
     
@@ -362,7 +372,16 @@ def main():
         print("\nOpening Immoweb...")
         scraper.navigate_to("https://www.immoweb.be")
         
-        scraper.wait_for_user("Browser is ready! Navigate to a search page, then press Enter...")
+        print("\n" + "="*60)
+        print("BROWSER IS NOW OPEN")
+        print("="*60)
+        print("\nYou can now:")
+        print("1. Navigate manually to any page on Immoweb")
+        print("2. Use the menu below to create your scraping workflow")
+        print("3. The browser will stay open - you can interact with it anytime")
+        print("\n" + "="*60)
+        
+        scraper.wait_for_user("\nNavigate to a search page in the browser, then press Enter here...")
         
         # Start interactive mode
         scraper.select_elements_interactive()
@@ -371,7 +390,11 @@ def main():
         print("\n\nInterrupted by user")
     except Exception as e:
         print(f"\n[ERROR] {e}")
+        import traceback
+        traceback.print_exc()
     finally:
+        print("\nClosing browser in 3 seconds...")
+        time.sleep(3)
         scraper.close()
 
 

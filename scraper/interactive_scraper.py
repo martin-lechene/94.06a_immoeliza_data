@@ -16,6 +16,13 @@ import os
 from bs4 import BeautifulSoup
 import pandas as pd
 
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    PSUTIL_AVAILABLE = False
+    psutil = None
+
 
 class InteractiveImmowebScraper:
     """
@@ -50,7 +57,7 @@ class InteractiveImmowebScraper:
         
         # Check if Chrome is running
         chrome_running = False
-        if psutil:
+        if PSUTIL_AVAILABLE:
             try:
                 chrome_running = any("chrome" in p.name().lower() for p in psutil.process_iter(['name']))
             except:

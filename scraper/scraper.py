@@ -76,17 +76,17 @@ class Immoweb_Scraper:
                     temp_dict[cookie.name] = cookie.value
                     self.session.cookies.set(cookie.name, cookie.value, domain=cookie.domain)
                 
-                if temp_dict:
-                    cookie_dict = temp_dict
-                    loaded_from = browser_name
-                    print(f"✓ Loaded {len(cookie_dict)} cookies from {browser_name} browser")
-                    break
+                    if temp_dict:
+                        cookie_dict = temp_dict
+                        loaded_from = browser_name
+                        print(f"[OK] Loaded {len(cookie_dict)} cookies from {browser_name} browser")
+                        break
             except Exception as e:
                 # Try next browser
                 continue
         
         if not cookie_dict:
-            print("⚠ No browser cookies found for immoweb.be, using session cookies")
+            print("[WARNING] No browser cookies found for immoweb.be, using session cookies")
             print("  Tip: Visit immoweb.be in your browser first to generate cookies")
         else:
             # Also try to get cookies for www.immoweb.be
@@ -106,7 +106,7 @@ class Immoweb_Scraper:
                                 self.session.cookies.set(cookie.name, cookie.value, domain=cookie.domain)
                                 additional += 1
                         if additional > 0:
-                            print(f"✓ Loaded {additional} additional cookies from www.immoweb.be")
+                            print(f"[OK] Loaded {additional} additional cookies from www.immoweb.be")
             except Exception as e:
                 # Silently continue if we can't get www cookies
                 pass
@@ -119,7 +119,7 @@ class Immoweb_Scraper:
             print("Establishing session with Immoweb...")
             response = self.session.get('https://www.immoweb.be', timeout=15, allow_redirects=True)
             if response.status_code == 200:
-                print("Session established successfully")
+                print("[OK] Session established successfully")
                 # Wait a bit to simulate human behavior
                 time.sleep(random.uniform(2, 4))
             else:

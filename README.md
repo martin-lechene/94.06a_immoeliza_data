@@ -211,6 +211,20 @@ scrapper-immoweb/
 - Use the "Test selectors" option in the interactive scraper
 - Verify that the page structure hasn't changed
 
+## Documentation
+
+- **QUICK_START.md**: Quick start guide for the interactive scraper
+- **START_HERE.txt**: Simple getting started instructions
+- **CHANGELOG.md**: Complete list of changes and new features
+
+## Recent Updates
+
+See [CHANGELOG.md](CHANGELOG.md) for detailed information about recent changes, including:
+- New interactive scraper with real browser control
+- Browser cookie integration
+- Improved error handling
+- Bug fixes and performance improvements
+
 ## Contributors
 
 [Mahak Behl](https://github.com/MahakBehl)

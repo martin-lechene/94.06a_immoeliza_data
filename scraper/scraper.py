@@ -5,6 +5,7 @@ import pandas as pd
 import time
 import re
 import random
+import browser_cookie3
 
 
 class Immoweb_Scraper:
@@ -28,6 +29,10 @@ class Immoweb_Scraper:
         self.data_set = []
         self.numpages = numpages
         self.session = requests.Session()
+        
+        # Load cookies from Chrome browser
+        self._load_browser_cookies()
+        
         # Set realistic headers to mimic a real browser
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -42,13 +47,48 @@ class Immoweb_Scraper:
             'Sec-Fetch-User': '?1',
             'Cache-Control': 'max-age=0',
             'DNT': '1',
+            'Referer': 'https://www.immoweb.be/',
         })
-        # Visit homepage first to get cookies
+        
+        # Visit homepage first to get cookies and establish session
+        self._establish_session()
+    
+    def _load_browser_cookies(self):
+        """
+        Load cookies from Chrome browser to make requests look more authentic.
+        """
         try:
-            self.session.get('https://www.immoweb.be', timeout=10)
-            time.sleep(random.uniform(2, 4))
-        except:
-            pass  # Continue even if homepage visit fails
+            # Try to load cookies from Chrome
+            chrome_cookies = browser_cookie3.chrome(domain_name='immoweb.be')
+            cookie_dict = {}
+            for cookie in chrome_cookies:
+                cookie_dict[cookie.name] = cookie.value
+                self.session.cookies.set(cookie.name, cookie.value, domain=cookie.domain)
+            
+            if cookie_dict:
+                print(f"Loaded {len(cookie_dict)} cookies from Chrome browser")
+            else:
+                print("No Chrome cookies found for immoweb.be, using session cookies")
+        except Exception as e:
+            print(f"Could not load Chrome cookies: {e}")
+            print("Continuing with session cookies only")
+    
+    def _establish_session(self):
+        """
+        Visit the homepage to establish a session and get initial cookies.
+        """
+        try:
+            print("Establishing session with Immoweb...")
+            response = self.session.get('https://www.immoweb.be', timeout=15, allow_redirects=True)
+            if response.status_code == 200:
+                print("Session established successfully")
+                # Wait a bit to simulate human behavior
+                time.sleep(random.uniform(2, 4))
+            else:
+                print(f"Warning: Homepage returned status {response.status_code}")
+        except Exception as e:
+            print(f"Warning: Could not establish session: {e}")
+            print("Continuing anyway...")
 
     def get_base_urls(self):
         """

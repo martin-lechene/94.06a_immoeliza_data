@@ -150,6 +150,11 @@ class Immoweb_Scraper:
             'Referer': 'https://www.immoweb.be/',
         })
         
+        # Update referer to make it look like we're navigating from the site
+        self.session.headers.update({
+            'Referer': 'https://www.immoweb.be/',
+        })
+        
         max_retries = 3
         url_content = None
         for attempt in range(max_retries):

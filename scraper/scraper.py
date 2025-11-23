@@ -71,12 +71,13 @@ class Immoweb_Scraper:
             try:
                 # Try to load cookies from the browser
                 browser_cookies = browser_func(domain_name='immoweb.be')
-                cookie_dict = {}
+                temp_dict = {}
                 for cookie in browser_cookies:
-                    cookie_dict[cookie.name] = cookie.value
+                    temp_dict[cookie.name] = cookie.value
                     self.session.cookies.set(cookie.name, cookie.value, domain=cookie.domain)
                 
-                if cookie_dict:
+                if temp_dict:
+                    cookie_dict = temp_dict
                     loaded_from = browser_name
                     print(f"✓ Loaded {len(cookie_dict)} cookies from {browser_name} browser")
                     break
@@ -91,13 +92,23 @@ class Immoweb_Scraper:
             # Also try to get cookies for www.immoweb.be
             try:
                 if loaded_from:
-                    browser_func = dict(browsers)[loaded_from]
-                    www_cookies = browser_func(domain_name='www.immoweb.be')
-                    for cookie in www_cookies:
-                        if cookie.name not in cookie_dict:
-                            cookie_dict[cookie.name] = cookie.value
-                            self.session.cookies.set(cookie.name, cookie.value, domain=cookie.domain)
-            except:
+                    browser_func = None
+                    for name, func in browsers:
+                        if name == loaded_from:
+                            browser_func = func
+                            break
+                    if browser_func:
+                        www_cookies = browser_func(domain_name='www.immoweb.be')
+                        additional = 0
+                        for cookie in www_cookies:
+                            if cookie.name not in cookie_dict:
+                                cookie_dict[cookie.name] = cookie.value
+                                self.session.cookies.set(cookie.name, cookie.value, domain=cookie.domain)
+                                additional += 1
+                        if additional > 0:
+                            print(f"✓ Loaded {additional} additional cookies from www.immoweb.be")
+            except Exception as e:
+                # Silently continue if we can't get www cookies
                 pass
     
     def _establish_session(self):
@@ -144,11 +155,6 @@ class Immoweb_Scraper:
         """
         # Add random delay to appear more human-like (longer delay for first requests)
         time.sleep(random.uniform(2, 5))
-        
-        # Update referer to make it look like we're navigating from the site
-        self.session.headers.update({
-            'Referer': 'https://www.immoweb.be/',
-        })
         
         # Update referer to make it look like we're navigating from the site
         self.session.headers.update({

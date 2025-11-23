@@ -53,20 +53,68 @@ class Immoweb_Scraper:
         - list: List of Immoweb URLs.
         """
         try:
-            url_content = requests.get(url).content  # Fetch content of the URL
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+            response = requests.get(url, headers=headers, timeout=10)
+            response.raise_for_status()
+            url_content = response.content
         except requests.exceptions.RequestException as e:
             print(f"Error accessing {url}: {e}")
             return []
 
         lst = []
         soup = BeautifulSoup(url_content, "lxml")
-        for tag in soup.find_all("a", attrs={"class": "card__title-link"}):
-            immoweb_url = tag.get("href")
-            if "www.immoweb.be" in immoweb_url and "new-real-estate-project" not in immoweb_url:
-                lst.append(immoweb_url)
+        
+        # Try multiple selectors to find property links
+        selectors = [
+            ("a", {"class": "card__title-link"}),
+            ("a", {"class": "card-title-link"}),
+            ("a", {"class": "search-result__title-link"}),
+            ("a", {"class": "property-link"}),
+            ("a", {"class": lambda x: x and "card" in x.lower() and "link" in x.lower()}),
+        ]
+        
+        # First, try finding links by href pattern (most reliable method)
+        for tag in soup.find_all("a", href=True):
+            href = tag.get("href", "")
+            if not href:
+                continue
+                
+            # Normalize href
+            if href.startswith("/"):
+                href = f"https://www.immoweb.be{href}"
+            elif not href.startswith("http"):
+                continue
+                
+            # Check if it's a property URL
+            if ("www.immoweb.be" in href or "immoweb.be" in href) and \
+               ("/property/" in href or "/en/classified/" in href or "/fr/classified/" in href or "/nl/classified/" in href) and \
+               "new-real-estate-project" not in href:
+                lst.append(href)
+        
+        # Try the specific class selectors
+        for tag_name, attrs in selectors:
+            try:
+                for tag in soup.find_all(tag_name, attrs=attrs):
+                    immoweb_url = tag.get("href")
+                    if immoweb_url:
+                        if immoweb_url.startswith("/"):
+                            immoweb_url = f"https://www.immoweb.be{immoweb_url}"
+                        if ("www.immoweb.be" in immoweb_url or "immoweb.be" in immoweb_url) and \
+                           "new-real-estate-project" not in immoweb_url:
+                            lst.append(immoweb_url)
+            except Exception as e:
+                # Skip if selector fails
+                continue
 
         # Ensure only unique URLs are returned
-        return list(set(lst))
+        unique_urls = list(set(lst))
+        if unique_urls:
+            print(f"Found {len(unique_urls)} URLs from {url}")
+        else:
+            print(f"Warning: No URLs found from {url}. The page structure may have changed.")
+        return unique_urls
 
     def get_immoweb_urls_thread(self):
         self.base_urls_list = self.get_base_urls()
@@ -110,11 +158,17 @@ class Immoweb_Scraper:
         - list: List of dictionaries containing scraped data.
         """
         self.soups = self.create_soup_thread()
+        # Filter out None soups and corresponding URLs
+        valid_pairs = [(url, soup) for url, soup in zip(self.immoweb_urls_list, self.soups) if soup is not None]
+        if not valid_pairs:
+            print("No valid soups to process")
+            return self.data_set
+        
         with ThreadPoolExecutor(max_workers=9) as executor:
             print('Scraping in progress')
-            results = executor.map(lambda url_soup: self.process_url(url_soup[0], url_soup[1]), zip(self.immoweb_urls_list, self.soups))
+            results = executor.map(lambda url_soup: self.process_url(url_soup[0], url_soup[1]), valid_pairs)
             for result in results:
-                if result not in self.data_set:  # Check for duplicates before appending
+                if result and result not in self.data_set:  # Check for duplicates before appending
                     self.data_set.append(result)
         return self.data_set
 
@@ -124,10 +178,13 @@ class Immoweb_Scraper:
         
         Args:
         - each_url (str): URL to scrape.
+        - soup: BeautifulSoup object for the URL.
         
         Returns:
         - dict: Dictionary containing scraped data.
         """
+        if soup is None:
+            return None
         data_dict = {}
         data_dict["url"] = each_url
         data_dict["Property ID"], data_dict["Locality name"], data_dict["Postal code"], data_dict[
@@ -144,9 +201,11 @@ class Immoweb_Scraper:
             data_dict["Open Fire"] = 0
         
         try:    
-            for tag in soup.find("p", attrs={"class": "classified__price"}):
-                if tag.text.startswith("€"):
-                    data_dict["Price"] = tag.text.split(' ')[0][1:].replace(',', '')  # Drop commas from price
+            price_tag = soup.find("p", attrs={"class": "classified__price"})
+            if price_tag and price_tag.text.startswith("€"):
+                data_dict["Price"] = price_tag.text.split(' ')[0][1:].replace(',', '')  # Drop commas from price
+            else:
+                data_dict["Price"] = 0
         except: 
             data_dict["Price"] = 0
         
@@ -187,7 +246,13 @@ class Immoweb_Scraper:
         """ 
         Convert the data_set DataFrame into CSV 
         """
-        self.data_set_df.to_csv('data/raw_data/data_set_RAW.csv', index=False)
+        if len(self.data_set) == 0:
+            print('Warning: No data to save. Creating empty CSV file.')
+            # Create empty DataFrame with expected columns
+            empty_df = pd.DataFrame(columns=["url", "Property ID", "Locality name", "Postal code", "Subtype of property", "Open Fire", "Price"] + self.element_list)
+            empty_df.to_csv('data/raw_data/data_set_RAW.csv', index=False)
+        else:
+            self.data_set_df.to_csv('data/raw_data/data_set_RAW.csv', index=False)
         print('A .csv file called "data_set_RAW.csv" has been generated. ')
 
 
@@ -197,32 +262,65 @@ class Immoweb_Scraper:
         Allow to clean the DataFrame (inner aggregation, conversion, renaming )
 
         """
-        self.data_set_df = pd.read_csv("data/raw_data/data_set_RAW.csv", delimiter = ',')
-        print(self.data_set_df.head())
-        print(len(self.data_set_df))
+        import os
+        csv_path = "data/raw_data/data_set_RAW.csv"
         
+        # Check if file exists and is not empty
+        if not os.path.exists(csv_path) or os.path.getsize(csv_path) == 0:
+            print("Warning: No data to clean. The raw data file is empty or does not exist.")
+            self.data_set_df = pd.DataFrame()
+            return self.data_set_df
         
-        #drop duplicate based of property id 
-        self.data_set_df = self.data_set_df.drop_duplicates(subset=['Property ID'])
+        try:
+            self.data_set_df = pd.read_csv(csv_path, delimiter=',')
+            
+            # Check if DataFrame is empty
+            if len(self.data_set_df) == 0:
+                print("Warning: The raw data file is empty. Nothing to clean.")
+                return self.data_set_df
+                
+            print(self.data_set_df.head())
+            print(f"Number of rows before cleaning: {len(self.data_set_df)}")
+        except pd.errors.EmptyDataError:
+            print("Warning: The raw data file is empty. Nothing to clean.")
+            self.data_set_df = pd.DataFrame()
+            return self.data_set_df
+        
+        # Check if DataFrame is empty after reading
+        if len(self.data_set_df) == 0:
+            print("Warning: No data to clean. The DataFrame is empty.")
+            return self.data_set_df
+        
+        #drop duplicate based of property id
+        if 'Property ID' in self.data_set_df.columns:
+            self.data_set_df = self.data_set_df.drop_duplicates(subset=['Property ID'])
+        else:
+            print("Warning: 'Property ID' column not found. Skipping duplicate removal.")
       
      
 
         # suppress wrong postal code
-        condition_to_delete = self.data_set_df['Postal code'].str.len() < 5
-        #condition_to_delete = ((self.data_set_df['Postal code'].str.contains('%')) | (len(self.data_set_df['Postal code']) > 4))
-        #condition_to_delete = (self.data_set_df['Postal code'].astype(str).str.isdigit()) | (self.data_set_df['Postal code'].astype(str).str.len() > 4)
+        if 'Postal code' in self.data_set_df.columns:
+            condition_to_delete = self.data_set_df['Postal code'].astype(str).str.len() < 5
+            #condition_to_delete = ((self.data_set_df['Postal code'].str.contains('%')) | (len(self.data_set_df['Postal code']) > 4))
+            #condition_to_delete = (self.data_set_df['Postal code'].astype(str).str.isdigit()) | (self.data_set_df['Postal code'].astype(str).str.len() > 4)
 
-        self.data_set_df = self.data_set_df[condition_to_delete]
-        self.data_set_df = self.data_set_df.reset_index(drop=True)
+            self.data_set_df = self.data_set_df[~condition_to_delete]  # Keep rows where postal code length >= 5
+            self.data_set_df = self.data_set_df.reset_index(drop=True)
+        else:
+            print("Warning: 'Postal code' column not found. Skipping postal code filtering.")
       
         
 
         # replacements of ugly pattern
-        patterns_to_search = [re.escape('?'), '%C3%8B','%28','%29', '%27','%20', '%C3%A8', '%C3%8A', '%C3%AA', '%C3%88', '%C3%89', '%C3%A9', '%C3%A0', '%C3%A2', '%C3%82', '%C3%80','%C3%BB']
-        replacements = [' ', 'e','','',' ', ' ', 'e', 'e','e', 'e','e', 'e', 'a', 'a', 'a','a', 'u', ]
-        for pattern, replacement in zip(patterns_to_search, replacements):
-            condition_to_replace = self.data_set_df['Locality name'].str.contains(pattern)
-            self.data_set_df.loc[condition_to_replace, 'Locality name'] = self.data_set_df.loc[condition_to_replace, 'Locality name'].str.replace(pattern, replacement)
+        if 'Locality name' in self.data_set_df.columns:
+            patterns_to_search = [re.escape('?'), '%C3%8B','%28','%29', '%27','%20', '%C3%A8', '%C3%8A', '%C3%AA', '%C3%88', '%C3%89', '%C3%A9', '%C3%A0', '%C3%A2', '%C3%82', '%C3%80','%C3%BB']
+            replacements = [' ', 'e','','',' ', ' ', 'e', 'e','e', 'e','e', 'e', 'a', 'a', 'a','a', 'u', ]
+            for pattern, replacement in zip(patterns_to_search, replacements):
+                condition_to_replace = self.data_set_df['Locality name'].str.contains(pattern, na=False)
+                self.data_set_df.loc[condition_to_replace, 'Locality name'] = self.data_set_df.loc[condition_to_replace, 'Locality name'].str.replace(pattern, replacement)
+        else:
+            print("Warning: 'Locality name' column not found. Skipping pattern replacement.")
      
 
 
@@ -286,15 +384,20 @@ class Immoweb_Scraper:
         self.data_set_df["Bathrooms total nb"] = (self.data_set_df["Bathrooms"].fillna(0) + self.data_set_df["Shower rooms"].fillna(0))
 
         def province(dfval):
+            if pd.isna(dfval):
+                return None
             postal_codes = [range(1000,1300), range(1300, 1500), range(1500,1990), range(3000,3500), range(2000,3000), range(3500,4000), range(4000,5000), range(5000,6000), range(6000,6600), range(7000,8000), range(6600,7000), range(8000,9000), range(9000,10000)]
             provinces = ['Brussels Hoofdstedelijk Gewest', 'Waals-Brabant', 'Vlaams-Brabant', 'Vlaams-Brabant', 'Antwerpen', 'Limburg', 'Luik', 'Namen','Henegouwen', 'Henegouwen','Luxemburg', 'West-Vlaanderen', 'Oost-Vlaanderen']
             for pc_range, prov in zip(postal_codes, provinces):
                 if dfval in pc_range:
                     return prov
+            return None
         self.data_set_df['province'] = self.data_set_df['Postal code'].apply(lambda x: province(x))
 
 
         def region(dfval):
+            if pd.isna(dfval):
+                return None
             if dfval in range(1300,1500) or dfval in range(4000,7000):
                 return 'Wallonia'
             elif dfval in range(1000,1300):
@@ -535,5 +638,11 @@ class Immoweb_Scraper:
          
         #Convert the data_set DataFrame into CSV 
         
-        self.data_set_df.to_csv('data/clean_data/data_set_CLEAN.csv', index=False)
+        if len(self.data_set_df) == 0:
+            print('Warning: No cleaned data to save. Creating empty CSV file.')
+            # Create empty DataFrame
+            empty_df = pd.DataFrame()
+            empty_df.to_csv('data/clean_data/data_set_CLEAN.csv', index=False)
+        else:
+            self.data_set_df.to_csv('data/clean_data/data_set_CLEAN.csv', index=False)
         print('A .csv file called "data_set_CLEAN.csv" has been generated. ')

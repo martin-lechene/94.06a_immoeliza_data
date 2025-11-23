@@ -28,10 +28,10 @@ class Immoweb_Scraper:
         self.data_set = []
         self.numpages = numpages
         self.session = requests.Session()
-        # Set realistic headers
+        # Set realistic headers to mimic a real browser
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
             'Accept-Language': 'en-US,en;q=0.9,fr;q=0.8,nl;q=0.7',
             'Accept-Encoding': 'gzip, deflate, br',
             'Connection': 'keep-alive',
@@ -39,8 +39,16 @@ class Immoweb_Scraper:
             'Sec-Fetch-Dest': 'document',
             'Sec-Fetch-Mode': 'navigate',
             'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
             'Cache-Control': 'max-age=0',
+            'DNT': '1',
         })
+        # Visit homepage first to get cookies
+        try:
+            self.session.get('https://www.immoweb.be', timeout=10)
+            time.sleep(random.uniform(2, 4))
+        except:
+            pass  # Continue even if homepage visit fails
 
     def get_base_urls(self):
         """
@@ -67,8 +75,8 @@ class Immoweb_Scraper:
         Returns:
         - list: List of Immoweb URLs.
         """
-        # Add random delay to appear more human-like
-        time.sleep(random.uniform(1, 3))
+        # Add random delay to appear more human-like (longer delay for first requests)
+        time.sleep(random.uniform(2, 5))
         
         max_retries = 3
         url_content = None
@@ -158,15 +166,14 @@ class Immoweb_Scraper:
 
     def get_immoweb_urls_thread(self):
         self.base_urls_list = self.get_base_urls()
-        # Reduce workers to avoid being blocked
-        max_workers = min(3, len(self.base_urls_list))
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            print('Generating urls')
-            results = executor.map(lambda url: self.get_immoweb_url(url), self.base_urls_list)
-            for result in results:
-                if result:
-                    print(f"Found {len(result)} URLs")
-                self.immoweb_urls_list.extend(result)
+        # Use sequential requests instead of threading to avoid being blocked
+        # Immoweb seems to block concurrent requests
+        print('Generating urls (sequential mode to avoid blocking)')
+        for url in self.base_urls_list:
+            result = self.get_immoweb_url(url)
+            if result:
+                print(f"Found {len(result)} URLs from page")
+            self.immoweb_urls_list.extend(result)
         print(f"Total URLs collected: {len(self.immoweb_urls_list)}")
         return self.immoweb_urls_list
 
@@ -180,14 +187,12 @@ class Immoweb_Scraper:
             print("No URLs to process. Skipping soup creation.")
             return []
         
-        # Reduce workers to avoid being blocked
-        max_workers = min(3, len(self.immoweb_urls_list))
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # Use the same session for all requests
-            results = executor.map(lambda url: self.create_soup(url, self.session), self.immoweb_urls_list)
-            for result in results:
-                if result is not None:
-                    self.soups.append(result)
+        # Use sequential requests instead of threading to avoid being blocked
+        print('Creating soups (sequential mode to avoid blocking)')
+        for url in self.immoweb_urls_list:
+            soup = self.create_soup(url, self.session)
+            if soup is not None:
+                self.soups.append(soup)
         print(f"Created {len(self.soups)} soup objects out of {len(self.immoweb_urls_list)} URLs")
         return self.soups
     
@@ -239,14 +244,12 @@ class Immoweb_Scraper:
             print("No valid soups to process")
             return self.data_set
         
-        # Reduce workers to avoid being blocked
-        max_workers = min(3, len(valid_pairs))
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            print('Scraping in progress')
-            results = executor.map(lambda url_soup: self.process_url(url_soup[0], url_soup[1]), valid_pairs)
-            for result in results:
-                if result and result not in self.data_set:  # Check for duplicates before appending
-                    self.data_set.append(result)
+        # Use sequential processing to avoid being blocked
+        print('Scraping in progress (sequential mode)')
+        for url, soup in valid_pairs:
+            result = self.process_url(url, soup)
+            if result and result not in self.data_set:  # Check for duplicates before appending
+                self.data_set.append(result)
         print(f"Scraped {len(self.data_set)} properties")
         return self.data_set
 

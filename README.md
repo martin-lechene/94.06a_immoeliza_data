@@ -1,28 +1,78 @@
 # Immoweb Scraper
-Immoweb Scraper is a Python program designed for efficiently scraping information about houses and appartments that are for sale Immoweb. The tool offers a command-line interface, allowing users to select the amount of data they want to scrape and save the scraped information in various file formats.
+
+Immoweb Scraper is a Python program designed for efficiently scraping information about houses and apartments that are for sale on Immoweb. The tool offers two modes of operation:
+
+1. **Standard Scraper** (`main.py`): Automated scraping with command-line interface
+2. **Interactive Scraper** (`interactive_main.py`): Opens a real Chrome browser for manual navigation and custom workflow creation
+
+## Features
+
+### Standard Scraper
+- Command-line interface for automated scraping
+- Select the number of pages to scrape (up to 333 pages)
+- Automatic data extraction and cleaning
+- Outputs both raw and cleaned CSV files
+
+### Interactive Scraper (NEW!)
+- **Real Browser Control**: Opens Chrome with your profile - navigate freely like a normal browser
+- **Custom Workflows**: Create your own scraping workflows by selecting elements
+- **No Blocking**: Uses your real browser session - no 403 errors
+- **Test Before Scraping**: Test your selectors on the current page
+- **Save/Load Workflows**: Save your workflows as JSON and reuse them
+- **Multiple Selector Types**: Support for CSS, XPath, Class, and ID selectors
 
 ## Installation
+
 To install Immoweb Scraper, follow these steps:
 
-Clone the repository to your local machine using the command:
-```
+1. Clone the repository to your local machine:
+```bash
 git clone https://github.com/slvg01/immo-eliza-scraping-Qbicle.git
-```
-```
 cd immo-eliza-scraping-Qbicle
 ```
-Ensure that you have the required dependencies installed by executing:
-```
+
+2. Install the required dependencies:
+```bash
 pip install -r requirements.txt
 ```
 
+**Note**: For the interactive scraper, you also need Chrome browser installed. ChromeDriver will be automatically downloaded.
+
 ## How to Use
-```
+
+### Standard Scraper
+
+```bash
 python main.py
 ```
-Follow the on-screen prompts to:
 
-Select the amount of pages you want to Scrape. For each page all properties are scraped. Note that new real estate projects will be skipped because they contain separate links to available properties. These separate links are included in the scraped data.
+Follow the on-screen prompts to:
+- Select the number of pages you want to scrape (max 333 pages)
+- For each page, all properties are scraped
+- Note: New real estate projects are skipped (they contain separate links to available properties)
+
+### Interactive Scraper (Recommended)
+
+```bash
+python interactive_main.py
+```
+
+**Quick Start:**
+1. Close Chrome completely before starting
+2. Run the command above
+3. Chrome opens with your profile - navigate freely
+4. Use the interactive menu to create your scraping workflow
+5. Test your selectors before scraping
+6. Start scraping with your real browser session
+
+**See `QUICK_START.md` for detailed instructions.**
+
+**Key Advantages:**
+- ✅ No 403 blocking (uses real browser)
+- ✅ Custom workflows (extract exactly what you need)
+- ✅ Test selectors before scraping
+- ✅ Save and reuse workflows
+- ✅ Full browser control (navigate, search, click - do everything!)
 
 ## First Output = data_set_RAW
 |Variable name                 |Content                                                                                                                        |Type   |
@@ -122,9 +172,51 @@ a whole data set visualization notebook can be found in the Analysis folder
 a presentation of the analysis of the dataframe can be seen in the Report folder 
 
 
+## Project Structure
+
+```
+scrapper-immoweb/
+├── main.py                    # Standard scraper entry point
+├── interactive_main.py        # Interactive scraper entry point
+├── scraper/
+│   ├── scraper.py            # Standard scraper implementation
+│   └── interactive_scraper.py # Interactive scraper with Selenium
+├── data/
+│   ├── raw_data/             # Raw scraped data (CSV)
+│   └── clean_data/           # Cleaned and processed data (CSV)
+├── requirements.txt          # Python dependencies
+├── CHANGELOG.md              # Project changelog
+└── QUICK_START.md            # Quick start guide for interactive scraper
+```
+
+## Requirements
+
+- Python 3.7+
+- Chrome browser (for interactive scraper)
+- See `requirements.txt` for Python packages
+
+## Troubleshooting
+
+### 403 Forbidden Errors (Standard Scraper)
+- The standard scraper may encounter 403 errors due to Immoweb's anti-bot protection
+- **Solution**: Use the interactive scraper which uses a real browser session
+
+### Browser Won't Open (Interactive Scraper)
+- Make sure Chrome is completely closed before starting
+- ChromeDriver is automatically downloaded by webdriver-manager
+- If issues persist, try running as administrator
+
+### No Data Extracted
+- Check that your selectors are correct
+- Use the "Test selectors" option in the interactive scraper
+- Verify that the page structure hasn't changed
+
 ## Contributors
+
 [Mahak Behl](https://github.com/MahakBehl)
 
 [Sylvain Legay](https://github.com/slvg01)
 
 [Maarten Knaepen](https://github.com/MaartenKnaepen)
+
+[Martin Lechêne](https://github.com/martin-lechene)

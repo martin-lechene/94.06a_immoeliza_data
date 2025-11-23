@@ -1,0 +1,32 @@
+========================================
+  INTERACTIVE IMMOWEB SCRAPER
+========================================
+
+HOW TO USE:
+
+1. Close Chrome completely (important!)
+
+2. Run the command:
+   python interactive_main.py
+
+3. Chrome browser opens automatically
+   - It's YOUR Chrome with YOUR cookies
+   - You can navigate normally
+   - Do whatever you want in it!
+
+4. In the terminal, a menu appears:
+   - Option 1: Add property selector
+   - Option 2: Add detail selector
+   - Option 3: View workflow
+   - Option 4: Test selectors
+   - Option 5: Start scraping
+   - Option 6: Save workflow
+   - Option 7: Load workflow
+
+5. Browser stays open even after!
+   - Close it manually when you're done
+
+========================================
+THAT'S IT! The browser is yours!
+========================================
+
